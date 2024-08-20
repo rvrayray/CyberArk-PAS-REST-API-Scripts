@@ -2,7 +2,7 @@
 $baseUrl = "https://pvwa.address.com/PasswordVault/API"
 $authEndpoint = "$baseUrl/auth/pkipn/Logon"
 $logoffEndpoint = "$baseUrl/auth/logoff"
-$SetNextPassword = "$baseUrl/Accounts/93_3/Password/Retrieve"
+$SetNextPassword = "$baseUrl/Accounts/93_3/Password/SetNextPassword"
 
 # Load the client certificate from the PIV card
 $cert = Get-Item -Path Cert:\CurrentUser\My\4xxxxxxxxxxxxxxxxxxxxxxxxxxx0
