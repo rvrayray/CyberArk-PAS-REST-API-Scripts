@@ -1,0 +1,89 @@
+<RestPlugin>
+    <!-- Parameters -->
+    <Parameters>
+        <Parameter name="AddressWithValidation" validationPattern="{{AddressValidationPattern}}">{{Address}}</Parameter>
+        <Parameter name="BaseURL">https://{{AddressWithValidation}}:8089</Parameter>
+        <Parameter name="LoginURL">{{BaseURL}}/services/auth/login?output_mode=json</Parameter>
+        <Parameter name="ChangeURL">{{BaseURL}}/services/authentication/users/{{Username|urlEncode}}?output_mode=json</Parameter>
+    </Parameters>
+
+    <ErrorMessages></ErrorMessages>
+
+    <APICalls>
+        <APICall>
+            <!-- Verify: confirms the stored credential is valid via a session login -->
+            <Request name="VerifyLogin" method="POST">
+                <URL>{{LoginURL}}</URL>
+                <Headers>
+                    <Header key="Content-Type">application/x-www-form-urlencoded</Header>
+                </Headers>
+                <Body>username={{Username|urlEncode}}&amp;password={{Password|urlEncode}}</Body>
+            </Request>
+            <Responses>
+                <Response name="Success" type="valid" format="json" statusCode="200">
+                    <Parse>
+                        <ParseBody>
+                            <Parameter name="sessionKey" path="sessionKey" secure="true"/>
+                        </ParseBody>
+                    </Parse>
+                </Response>
+                <Response name="IncorrectPassword" type="error" statusCode="401">
+                    <ErrorMessage name="IncorrectPasswordMsg" returnCode="2001" description="Splunk authentication failed - invalid username or password"/>
+                </Response>
+            </Responses>
+        </APICall>
+
+        <APICall>
+            <!-- Change: authenticates with Basic Auth using the account's OWN current credentials
+                 in the same call that sets the new password - no session-key step needed, since
+                 Splunk's REST API accepts Basic Auth on this endpoint just as well as a session key -->
+            <Request name="ChangePassword" method="POST">
+                <URL>{{ChangeURL}}</URL>
+                <Headers>
+                    <Header key="Content-Type">application/x-www-form-urlencoded</Header>
+                    <Header key="Authorization">Basic {{Username}}:{{Password}}</Header>
+                </Headers>
+                <Body>password={{NewPassword|urlEncode}}&amp;oldpassword={{Password|urlEncode}}</Body>
+            </Request>
+            <Responses>
+                <Response name="ChangeSuccess" type="valid" statusCode="200"/>
+                <Response name="ChangeUnauthorized" type="error" statusCode="401">
+                    <ErrorMessage name="ChangeUnauthorizedMsg" returnCode="2002" description="Splunk rejected the credentials during change"/>
+                </Response>
+                <Response name="InvalidNewPassword" type="error" statusCode="400">
+                    <ErrorMessage name="InvalidNewPasswordMsg" returnCode="2003" description="Splunk rejected the new password - check password policy"/>
+                </Response>
+            </Responses>
+        </APICall>
+
+        <APICall>
+            <!-- Reconcile: same pattern, but authenticates as the privileged reconcile account
+                 to reset the TARGET user's password -->
+            <Request name="ReconcileChangePassword" method="POST">
+                <URL>{{ChangeURL}}</URL>
+                <Headers>
+                    <Header key="Content-Type">application/x-www-form-urlencoded</Header>
+                    <Header key="Authorization">Basic {{reconcileaccount\Username}}:{{reconcileaccount\Password}}</Header>
+                </Headers>
+                <Body>password={{NewPassword|urlEncode}}</Body>
+            </Request>
+            <Responses>
+                <Response name="ChangeSuccess"/>
+                <Response name="ChangeUnauthorized"/>
+                <Response name="InvalidNewPassword"/>
+            </Responses>
+        </APICall>
+    </APICalls>
+
+    <Chains>
+        <Chain name="verifypass">
+            <Request name="VerifyLogin" />
+        </Chain>
+        <Chain name="changepass">
+            <Request name="ChangePassword" />
+        </Chain>
+        <Chain name="reconcilepass">
+            <Request name="ReconcileChangePassword" />
+        </Chain>
+    </Chains>
+</RestPlugin>
